@@ -5,8 +5,68 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ScanProject"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="Scan Demo" Height="710" Width="904.587">
+
     <Grid>
-        
+
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="224*"/>
+            <ColumnDefinition Width="655*"/>
+            <ColumnDefinition Width="18*"/>
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Orientation="Vertical">
+            <Button Content="Scan Document" 
+                    Height="45" 
+                    Width="120" 
+                    Margin="0 10"
+                    Command="{Binding CaptureCommand}"/>
+
+            <TextBlock FontFamily="SF Pro Display" 
+                       FontSize="16"
+                       HorizontalAlignment="Center"
+                       Height="40"
+                       Text="{Binding State, StringFormat='Device State : {0}'}"/>
+
+            <ListBox Height="574" 
+                     ItemsSource="{Binding DataSources}"
+                     SelectedItem="{Binding SelectedDataSources}">
+
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel>
+
+                            <TextBlock Text="{Binding Name}" 
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding Version, StringFormat='Version {0}'}" 
+                                       TextWrapping="Wrap" 
+                                       Foreground="Black"
+                                       Margin="8 0 0 0"/>
+
+                            <TextBlock Text="{Binding Protocol, StringFormat='TWAIN {0}'}" 
+                                       Foreground="Black"
+                                       Margin="8 0 0 0"/>
+
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+        </StackPanel>
+
+        <Image Grid.Column="1" 
+               Margin="10,40,0,39"
+               Source="{Binding CapturedImage}"
+               RenderOptions.BitmapScalingMode="HighQuality"
+               RenderOptions.EdgeMode="Aliased"/>
+        <TextBlock Grid.Column="1" 
+                   HorizontalAlignment="Center" 
+                   Margin="158,322,125,311" 
+                   TextWrapping="Wrap" 
+                   FontSize="35"
+                   Visibility="{Binding InfoVisibility}"
+                   Text="No Scanned Document" 
+                   VerticalAlignment="Center" Width="372"/>
     </Grid>
+
 </Window>
