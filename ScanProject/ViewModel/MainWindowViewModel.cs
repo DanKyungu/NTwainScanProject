@@ -81,6 +81,7 @@ namespace ScanProject.ViewModel
 
                 _selectedDataSources = value;
                 _selectedDataSources?.Open();
+                _selectedDataSources?.DS.Capabilities.ACapXferMech.SetValue(XferMech.File);
                 RaisePropertyChanged(() => SelectedDataSources);
                 RaisePropertyChanged(() => CaptureCommand);
                 MessageBox.Show("Data Source Opened !");
