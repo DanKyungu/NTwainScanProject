@@ -14,6 +14,7 @@ namespace ScanProject.ViewModel
         public string Name { get { return DS.Name; } }
         public string Version { get { return DS.Version.Info; } }
         public string Protocol { get { return DS.ProtocolVersion.ToString(); } }
+        public bool IsOpen => DS.IsOpen;
 
         public DataSourceVM()
         {

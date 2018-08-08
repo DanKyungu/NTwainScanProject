@@ -21,47 +21,44 @@ namespace ScanProject.ViewModel
     {
         #region Private Fields
 
-        private readonly TwainSession _session;
         private IntPtr _windowHanle;
         private DataSourceVM _selectedDataSources;
         private ICommand _captureCommand;
-        private ImageSource _capturedImage;
+        private string _capturedImage;
+        private TwainCore _twainCore;
 
-        #endregion
+        #endregion Private Fields
 
         #region Public Fields
+
         public IntPtr WindowHandle
         {
             get => _windowHanle;
             set
             {
                 _windowHanle = value;
-                var res = _session.Open();
-                foreach (var s in _session.Select(s => new DataSourceVM { DS = s }))
-                {
-                    DataSources.Add(s);
-                }
+                DataSources = _twainCore.GetDataSources();
+                RaisePropertyChanged(() => DataSources);
             }
         }
-        public int State { get { return _session.State; } }
+
+        public int State { get { return _twainCore.State; } }
+
         public ICommand CaptureCommand
         {
             get
             {
-                return _captureCommand ?? (_captureCommand = new RelayCommand(() =>
+                return _captureCommand ?? (_captureCommand = new RelayCommand(async () =>
                 {
-                    if (!_session.IsSourceOpen)
-                        MessageBox.Show("Select first a DataSource");
-
-                    if (_session.State == 4)
-                    {
-                        var res = _session.CurrentSource.Enable(SourceEnableMode.NoUI, false, WindowHandle);
-                    }
+                    CapturedImage = await _twainCore.ScanDocumentAsync(@"C:\\", "docTest", WindowHandle);
+                    RaisePropertyChanged(() => CapturedImage);
                 }));
             }
         }
+
         public ObservableCollection<DataSourceVM> DataSources { get; set; }
-        public ImageSource CapturedImage
+
+        public string CapturedImage
         {
             get => _capturedImage;
             set
@@ -71,54 +68,50 @@ namespace ScanProject.ViewModel
                 RaisePropertyChanged(() => InfoVisibility);
             }
         }
+
         public DataSourceVM SelectedDataSources
         {
             get => _selectedDataSources;
             set
             {
-                if (_session.State == 4)
-                    _session.CurrentSource.Close();
+                if (_twainCore.State == 4)
+                    _twainCore.CurrentSource.Close();
 
                 _selectedDataSources = value;
                 _selectedDataSources?.Open();
-                _selectedDataSources?.DS.Capabilities.ACapXferMech.SetValue(XferMech.File);
+                _selectedDataSources?.DS.Capabilities.ICapXferMech.SetValue(XferMech.File);
                 RaisePropertyChanged(() => SelectedDataSources);
                 RaisePropertyChanged(() => CaptureCommand);
                 MessageBox.Show("Data Source Opened !");
             }
         }
+
         public Visibility InfoVisibility
         {
             get => CapturedImage == null ? Visibility.Visible : Visibility.Hidden;
         }
-        #endregion
+
+        #endregion Public Fields
 
         #region Constructor
+
         public MainWindowViewModel()
         {
-            DataSources = new ObservableCollection<DataSourceVM>();
-
-            PlatformInfo.Current.PreferNewDSM = false;
-
-            var appId = TWIdentity.CreateFromAssembly(DataGroups.Image | DataGroups.Audio, Assembly.GetEntryAssembly());
-            _session = new TwainSession(appId);
-
-            _session.TransferReady += _session_TransferReady;
-            _session.TransferError += _session_TransferError;
-            _session.DataTransferred += _session_DataTransferred;
-            _session.SourceDisabled += _session_SourceDisabled;
-            _session.StateChanged += _session_StateChanged;
-
+            //Open by default the second DataSource
+            _twainCore = new TwainCore(1);
+            _twainCore.StateChanged += (sender, e) => RaisePropertyChanged(() => State);
         }
-        #endregion
+
+        #endregion Constructor
 
         #region Helpers Methods
+
         /// <summary>
         /// Generate final from scanner device scan data
         /// </summary>
         /// <param name="e"><see cref="DataTransferredEventArgs"/> all informatione about scan data </param>
         /// <returns></returns>
-        ImageSource GenerateImage(DataTransferredEventArgs e)
+        private ImageSource GenerateImage(DataTransferredEventArgs e)
         {
             BitmapSource img = null;
 
@@ -133,6 +126,7 @@ namespace ScanProject.ViewModel
                         }
                     }
                     break;
+
                 case XferMech.File:
                     img = new BitmapImage(new Uri(e.FileDataPath));
                     if (img.CanFreeze)
@@ -140,6 +134,7 @@ namespace ScanProject.ViewModel
                         img.Freeze();
                     }
                     break;
+
                 case XferMech.Memory:
                     break;
             }
@@ -153,7 +148,7 @@ namespace ScanProject.ViewModel
         /// <param name="name">The name of the final file </param>
         /// <param name="ext">File extension, in this demo <see cref="FileFormat.Bmp"/> or <see cref="FileFormat.Tiff"/></param>
         /// <returns></returns>
-        string GetUniqueName(string dir, string name, string ext)
+        private string GetUniqueName(string dir, string name, string ext)
         {
             var filePath = Path.Combine(dir, name + ext);
             int next = 1;
@@ -163,54 +158,7 @@ namespace ScanProject.ViewModel
             }
             return filePath;
         }
-        #endregion
 
-        #region Session Event Handlers
-
-        private void _session_StateChanged(object sender, EventArgs e)
-        {
-            RaisePropertyChanged(() => State);
-        }
-
-        private void _session_SourceDisabled(object sender, EventArgs e)
-        {
-            throw new NotImplementedException();
-        }
-
-        private void _session_DataTransferred(object sender, DataTransferredEventArgs e)
-        {
-            ImageSource img = GenerateImage(e);
-            App.Current.Dispatcher.BeginInvoke(new Action(() =>
-            {
-                CapturedImage = img;
-            }));
-        }
-
-        private void _session_TransferError(object sender, TransferErrorEventArgs e)
-        {
-            throw new NotImplementedException();
-        }
-
-        private void _session_TransferReady(object sender, TransferReadyEventArgs e)
-        {
-            var mech = _session.CurrentSource.Capabilities.ICapXferMech.GetCurrent();
-            if (mech == XferMech.File)
-            {
-                var formats = _session.CurrentSource.Capabilities.ICapImageFileFormat.GetValues();
-                var wantFormat = formats.Contains(FileFormat.Tiff) ? FileFormat.Tiff : FileFormat.Bmp;
-
-                var fileSetup = new TWSetupFileXfer
-                {
-                    Format = wantFormat,
-                    FileName = GetUniqueName(Path.GetTempPath(), "filescan", "." + wantFormat)
-                };
-                var rc = _session.CurrentSource.DGControl.SetupFileXfer.Set(fileSetup);
-            }
-            else if (mech == XferMech.Memory)
-            {
-            }
-        } 
-
-        #endregion
+        #endregion Helpers Methods
     }
 }
